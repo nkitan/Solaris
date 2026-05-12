@@ -229,3 +229,29 @@ def trigger_now() -> None:
         logger.info("Solaris service triggered manually.")
     else:
         logger.error("Failed to trigger Solaris service.")
+
+
+def update_timer_time_based(light_start: str, dark_start: str) -> None:
+    """Rewrite the timer unit with two fixed daily OnCalendar entries.
+
+    Use this when schedule_mode is "time".  The timer fires at the same
+    clock times every day regardless of sunrise/sunset.
+
+    Args:
+        light_start: 24-hour HH:MM string for when to switch TO light mode.
+        dark_start:  24-hour HH:MM string for when to switch TO dark mode.
+    """
+    light_cal = f"*-*-* {light_start}:00"
+    dark_cal = f"*-*-* {dark_start}:00"
+
+    timer_content = _build_timer_content(light_cal, dark_cal)
+
+    timer_path = UNIT_DIR / TIMER_NAME
+    timer_path.write_text(timer_content, encoding="utf-8")
+    logger.info(
+        "Wrote time-based timer: light=%s dark=%s → %s",
+        light_cal, dark_cal, timer_path,
+    )
+
+    _run_systemctl("daemon-reload")
+

@@ -61,36 +61,83 @@ def _handle_apply_dark(cfg: config_module.SolarisConfig) -> None:
     print("✓ Dark theme applied.")
 
 
+def _determine_time_mode(cfg: config_module.SolarisConfig) -> str:
+    """Determine light/dark based on current time vs. the configured HH:MM window.
+
+    Returns "light" if the current local time is inside the window
+    [time_light_start, time_dark_start), "dark" otherwise.
+
+    Args:
+        cfg: The loaded SolarisConfig.
+
+    Returns:
+        "light" or "dark".
+    """
+    import datetime
+
+    def _parse_hhmm(hhmm: str) -> datetime.time:
+        h, m = hhmm.split(":")
+        return datetime.time(int(h), int(m))
+
+    now_time = datetime.datetime.now().time()
+    light_start = _parse_hhmm(cfg.time_light_start)
+    dark_start = _parse_hhmm(cfg.time_dark_start)
+
+    if light_start < dark_start:
+        # Normal case: light window is e.g. 07:00–20:00
+        return "light" if light_start <= now_time < dark_start else "dark"
+    else:
+        # Inverted window crosses midnight: dark window spans midnight
+        return "dark" if dark_start <= now_time < light_start else "light"
+
+
 def _handle_auto(cfg: config_module.SolarisConfig) -> None:
-    """Apply the theme appropriate for the current solar position, then reschedule the timer.
+    """Apply the theme for the current schedule mode, then reschedule the timer.
 
     This is the function called by the systemd service unit on each transition.
-    After applying the theme it updates the timer to fire at tomorrow's
-    sunrise/sunset, keeping the schedule self-maintaining.
-    """
-    calculator = SolarCalculator(cfg.latitude, cfg.longitude)
+    Behaviour depends on cfg.schedule_mode:
 
-    if cfg.override_mode is not None:
-        mode = cfg.override_mode
-        logger.info("Override mode active: %s", mode)
-    else:
+    - "solar"  — calculate mode from local sunrise/sunset, reschedule for tomorrow.
+    - "manual" — always apply cfg.manual_mode; no timer rescheduling needed.
+    - "time"   — calculate mode from HH:MM window; rewrite timer with fixed times.
+    """
+    import datetime
+
+    schedule_mode = cfg.schedule_mode
+    logger.info("--auto: schedule_mode=%s", schedule_mode)
+
+    if schedule_mode == config_module.SCHEDULE_MODE_MANUAL:
+        mode = cfg.manual_mode
+        logger.info("Manual mode: applying %s", mode)
+
+    elif schedule_mode == config_module.SCHEDULE_MODE_TIME:
+        mode = _determine_time_mode(cfg)
+        logger.info("Time-based mode: current mode=%s", mode)
+        # Rewrite timer with the fixed times (idempotent — safe to repeat).
+        try:
+            systemd_manager.update_timer_time_based(
+                cfg.time_light_start, cfg.time_dark_start
+            )
+        except Exception as exc:
+            logger.error("Failed to update time-based timer: %s", exc)
+
+    else:  # SCHEDULE_MODE_SOLAR (default)
+        calculator = SolarCalculator(cfg.latitude, cfg.longitude)
         mode = calculator.get_current_mode()
-        logger.info("Solar mode determined: %s", mode)
+        logger.info("Solar mode: current mode=%s", mode)
+        # Reschedule the timer for tomorrow's solar transitions.
+        tomorrow = date.today() + datetime.timedelta(days=1)
+        try:
+            tomorrow_times = calculator.get_times(tomorrow)
+            systemd_manager.update_timer(tomorrow_times.sunrise, tomorrow_times.sunset)
+            logger.info("Solar timer updated for %s.", tomorrow)
+        except Exception as exc:
+            logger.error("Failed to update solar timer: %s", exc)
 
     if mode == "light":
         _handle_apply_light(cfg)
     else:
         _handle_apply_dark(cfg)
-
-    # Reschedule the timer for tomorrow's transitions.
-    import datetime
-    tomorrow = date.today() + datetime.timedelta(days=1)
-    try:
-        tomorrow_times = calculator.get_times(tomorrow)
-        systemd_manager.update_timer(tomorrow_times.sunrise, tomorrow_times.sunset)
-        logger.info("Timer updated for tomorrow: %s", tomorrow)
-    except Exception as exc:
-        logger.error("Failed to update timer after auto-apply: %s", exc)
 
 
 def _handle_status(cfg: config_module.SolarisConfig) -> None:
@@ -99,49 +146,78 @@ def _handle_status(cfg: config_module.SolarisConfig) -> None:
     timer_active = systemd_manager.is_active()
     timer_enabled = systemd_manager.is_enabled()
 
-    calculator = SolarCalculator(cfg.latitude, cfg.longitude)
-    countdown = calculator.format_countdown()
-
     print(f"Solaris v{__version__}")
     print(f"  Current mode   : {current_mode}")
-    print(f"  Override mode  : {cfg.override_mode or 'none (auto)'}")
-    print(f"  Next transition: {countdown}")
-    print(f"  Location       : {cfg.latitude}°N, {cfg.longitude}°E")
+    print(f"  Schedule mode  : {cfg.schedule_mode}")
+
+    if cfg.schedule_mode == config_module.SCHEDULE_MODE_SOLAR:
+        calculator = SolarCalculator(cfg.latitude, cfg.longitude)
+        countdown = calculator.format_countdown()
+        print(f"  Next transition: {countdown}")
+        print(f"  Location       : {cfg.latitude}°N, {cfg.longitude}°E")
+    elif cfg.schedule_mode == config_module.SCHEDULE_MODE_MANUAL:
+        print(f"  Manual mode    : {cfg.manual_mode}")
+    elif cfg.schedule_mode == config_module.SCHEDULE_MODE_TIME:
+        print(f"  Light window   : {cfg.time_light_start} – {cfg.time_dark_start}")
+
     print(f"  Timer active   : {'yes' if timer_active else 'no'}")
     print(f"  Timer enabled  : {'yes' if timer_enabled else 'no'}")
 
 
 def _handle_install_timer(cfg: config_module.SolarisConfig) -> None:
     """Generate and install the systemd service and timer units, then enable them."""
-    calculator = SolarCalculator(cfg.latitude, cfg.longitude)
-
-    try:
-        today_times = calculator.get_times()
-    except Exception as exc:
-        print(f"✗ Failed to calculate solar times: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    systemd_manager.install_units(today_times.sunrise, today_times.sunset)
-    systemd_manager.enable()
-    print("✓ Solaris systemd timer installed and enabled.")
-    print(f"  Sunrise: {today_times.sunrise.strftime('%H:%M %Z')}")
-    print(f"  Sunset : {today_times.sunset.strftime('%H:%M %Z')}")
+    if cfg.schedule_mode == config_module.SCHEDULE_MODE_TIME:
+        # Time-based: write fixed OnCalendar entries.
+        UNIT_DIR = systemd_manager.UNIT_DIR
+        UNIT_DIR.mkdir(parents=True, exist_ok=True)
+        service_path = UNIT_DIR / systemd_manager.SERVICE_NAME
+        service_path.write_text(systemd_manager._SERVICE_TEMPLATE, encoding="utf-8")
+        systemd_manager.update_timer_time_based(
+            cfg.time_light_start, cfg.time_dark_start
+        )
+        systemd_manager.enable()
+        print("\u2713 Solaris systemd timer installed and enabled (time-based).")
+        print(f"  Light at: {cfg.time_light_start}")
+        print(f"  Dark at : {cfg.time_dark_start}")
+    elif cfg.schedule_mode == config_module.SCHEDULE_MODE_MANUAL:
+        print("ℹ️  Manual mode active — no timer needed.")
+    else:
+        # Solar mode: calculate today's times.
+        calculator = SolarCalculator(cfg.latitude, cfg.longitude)
+        try:
+            today_times = calculator.get_times()
+        except Exception as exc:
+            print(f"\u2717 Failed to calculate solar times: {exc}", file=sys.stderr)
+            sys.exit(1)
+        systemd_manager.install_units(today_times.sunrise, today_times.sunset)
+        systemd_manager.enable()
+        print("\u2713 Solaris systemd timer installed and enabled (solar).")
+        print(f"  Sunrise: {today_times.sunrise.strftime('%H:%M %Z')}")
+        print(f"  Sunset : {today_times.sunset.strftime('%H:%M %Z')}")
 
 
 def _handle_update_timer(cfg: config_module.SolarisConfig) -> None:
-    """Recalculate today's solar times and rewrite the timer unit."""
-    calculator = SolarCalculator(cfg.latitude, cfg.longitude)
-
-    try:
-        today_times = calculator.get_times()
-    except Exception as exc:
-        print(f"✗ Failed to calculate solar times: {exc}", file=sys.stderr)
-        sys.exit(1)
-
-    systemd_manager.update_timer(today_times.sunrise, today_times.sunset)
-    print("✓ Solaris timer updated.")
-    print(f"  Sunrise: {today_times.sunrise.strftime('%H:%M %Z')}")
-    print(f"  Sunset : {today_times.sunset.strftime('%H:%M %Z')}")
+    """Recalculate or reconfirm timer schedule based on the active schedule mode."""
+    if cfg.schedule_mode == config_module.SCHEDULE_MODE_TIME:
+        systemd_manager.update_timer_time_based(
+            cfg.time_light_start, cfg.time_dark_start
+        )
+        print("\u2713 Solaris timer updated (time-based).")
+        print(f"  Light at: {cfg.time_light_start}")
+        print(f"  Dark at : {cfg.time_dark_start}")
+    elif cfg.schedule_mode == config_module.SCHEDULE_MODE_MANUAL:
+        print("ℹ️  Manual mode active — no timer to update.")
+    else:
+        calculator = SolarCalculator(cfg.latitude, cfg.longitude)
+        try:
+            today_times = calculator.get_times()
+        except Exception as exc:
+            print(f"\u2717 Failed to calculate solar times: {exc}", file=sys.stderr)
+            sys.exit(1)
+        systemd_manager.update_timer(today_times.sunrise, today_times.sunset)
+        print("\u2713 Solaris timer updated (solar).")
+        print(f"  Sunrise: {today_times.sunrise.strftime('%H:%M %Z')}")
+        print(f"  Sunset : {today_times.sunset.strftime('%H:%M %Z')}")
 
 
 # ---------------------------------------------------------------------------

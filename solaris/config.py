@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import tempfile
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from xdg import BaseDirectory
@@ -23,6 +23,12 @@ CONFIG_FILE_NAME = "config.json"
 # Default location: Pune, Maharashtra, India
 DEFAULT_LATITUDE = 18.5
 DEFAULT_LONGITUDE = 73.8
+
+# Valid values for schedule_mode
+SCHEDULE_MODE_SOLAR = "solar"    # switch at local sunrise / sunset
+SCHEDULE_MODE_MANUAL = "manual"  # always light or always dark
+SCHEDULE_MODE_TIME = "time"      # switch at user-defined HH:MM times
+SCHEDULE_MODES = (SCHEDULE_MODE_SOLAR, SCHEDULE_MODE_MANUAL, SCHEDULE_MODE_TIME)
 
 
 @dataclass
@@ -52,15 +58,26 @@ class SolarisConfig:
     # --- Firefox Integration ---
     firefox_integration: bool = True
 
-    # --- Override Mode ---
-    # None  = follow solar schedule automatically
-    # "light" / "dark" = manual override
-    override_mode: str | None = None
+    # --- Schedule Mode ---
+    # "solar"  — switch at local sunrise/sunset (default)
+    # "manual" — always stay in one mode (see manual_mode)
+    # "time"   — switch at fixed HH:MM times (see time_light_start / time_dark_start)
+    schedule_mode: str = SCHEDULE_MODE_SOLAR
+
+    # Used when schedule_mode == "manual"
+    manual_mode: str = "dark"
+
+    # Used when schedule_mode == "time"  (24-hour HH:MM format)
+    time_light_start: str = "07:00"   # switch TO light at this time
+    time_dark_start: str = "20:00"    # switch TO dark at this time
 
     def __post_init__(self) -> None:
-        """Validate coordinate ranges immediately after construction."""
+        """Validate all fields immediately after construction."""
         _validate_latitude(self.latitude)
         _validate_longitude(self.longitude)
+        _validate_schedule_mode(self.schedule_mode)
+        _validate_hhmm(self.time_light_start, field_name="time_light_start")
+        _validate_hhmm(self.time_dark_start, field_name="time_dark_start")
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +94,23 @@ def _validate_longitude(value: float) -> None:
     """Raise ValueError if longitude is out of the valid WGS-84 range."""
     if not -180.0 <= value <= 180.0:
         raise ValueError(f"Longitude must be between -180 and 180, got {value!r}")
+
+
+def _validate_schedule_mode(value: str) -> None:
+    """Raise ValueError if schedule_mode is not one of the recognised strings."""
+    if value not in SCHEDULE_MODES:
+        raise ValueError(
+            f"schedule_mode must be one of {SCHEDULE_MODES!r}, got {value!r}"
+        )
+
+
+def _validate_hhmm(value: str, *, field_name: str = "time") -> None:
+    """Raise ValueError if value is not a valid 24-hour HH:MM string."""
+    import re
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+        raise ValueError(
+            f"{field_name} must be a 24-hour HH:MM string (e.g. '07:00'), got {value!r}"
+        )
 
 
 def _config_dir() -> Path:

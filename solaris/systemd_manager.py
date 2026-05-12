@@ -1,0 +1,231 @@
+"""Solaris systemd user unit manager.
+
+Generates, installs, and manages two systemd user units:
+  - solaris-update.service  (oneshot, applies the correct theme)
+  - solaris-update.timer    (fires at today's sunrise and sunset)
+
+After each timer fires, the service calls `solaris --auto` which applies
+the theme AND rewrites the timer for the next pair of transitions —
+the "self-rescheduling" pattern.  No long-running daemon is needed.
+"""
+
+from __future__ import annotations
+
+import logging
+import subprocess
+from pathlib import Path
+from typing import NamedTuple
+
+logger = logging.getLogger(__name__)
+
+UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
+
+SERVICE_NAME = "solaris-update.service"
+TIMER_NAME = "solaris-update.timer"
+
+# ---------------------------------------------------------------------------
+# Unit file templates
+# ---------------------------------------------------------------------------
+
+_SERVICE_TEMPLATE = """\
+[Unit]
+Description=Solaris Theme Update
+Documentation=https://github.com/notroot/solaris
+After=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env python3 -m solaris.cli --auto
+Environment=DISPLAY=:0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+"""
+
+_TIMER_HEADER = """\
+[Unit]
+Description=Solaris Theme Transition Timer
+Documentation=https://github.com/notroot/solaris
+
+[Timer]
+"""
+
+_TIMER_FOOTER = """\
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _run_systemctl(*args: str) -> bool:
+    """Run `systemctl --user <args>` and return True on success.
+
+    Args:
+        *args: Arguments to pass to systemctl after `--user`.
+
+    Returns:
+        True if the command exited with code 0, False otherwise.
+    """
+    command = ["systemctl", "--user", *args]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        logger.warning(
+            "systemctl --user %s failed (rc=%d): %s",
+            " ".join(args), result.returncode, result.stderr.strip(),
+        )
+        return False
+    return True
+
+
+def _format_on_calendar(dt_aware) -> str:
+    """Format a timezone-aware datetime as a systemd OnCalendar value.
+
+    Uses local time (the timer runs on the local machine) in the format:
+      *-*-* HH:MM:00
+
+    Args:
+        dt_aware: A timezone-aware datetime object.
+
+    Returns:
+        A systemd OnCalendar string in local time.
+    """
+    import datetime  # local import to keep module-level imports minimal
+    local_dt = dt_aware.astimezone(tz=None)  # convert to local timezone
+    return local_dt.strftime("*-*-* %H:%M:00")
+
+
+def _build_timer_content(sunrise_cal: str, sunset_cal: str) -> str:
+    """Assemble the full .timer unit file content.
+
+    Two OnCalendar lines are used — one for sunrise, one for sunset —
+    so a single timer handles both transitions each day.
+
+    Args:
+        sunrise_cal: Formatted OnCalendar string for sunrise.
+        sunset_cal:  Formatted OnCalendar string for sunset.
+
+    Returns:
+        Complete .timer unit file as a string.
+    """
+    return (
+        _TIMER_HEADER
+        + f"OnCalendar={sunrise_cal}\n"
+        + f"OnCalendar={sunset_cal}\n"
+        + _TIMER_FOOTER
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def install_units(sunrise, sunset) -> None:
+    """Write both unit files to disk and reload the systemd daemon.
+
+    Creates ~/.config/systemd/user/ if it doesn't exist.
+
+    Args:
+        sunrise: A timezone-aware datetime for today's sunrise.
+        sunset:  A timezone-aware datetime for today's sunset.
+    """
+    UNIT_DIR.mkdir(parents=True, exist_ok=True)
+
+    service_path = UNIT_DIR / SERVICE_NAME
+    service_path.write_text(_SERVICE_TEMPLATE, encoding="utf-8")
+    logger.info("Wrote %s", service_path)
+
+    update_timer(sunrise, sunset)
+
+
+def update_timer(sunrise, sunset) -> None:
+    """Rewrite the timer unit with new OnCalendar values and reload the daemon.
+
+    Safe to call even if the timer is already running — systemd will pick up
+    the new file content after daemon-reload and timer restart.
+
+    Args:
+        sunrise: A timezone-aware datetime for the target sunrise.
+        sunset:  A timezone-aware datetime for the target sunset.
+    """
+    sunrise_cal = _format_on_calendar(sunrise)
+    sunset_cal = _format_on_calendar(sunset)
+
+    timer_content = _build_timer_content(sunrise_cal, sunset_cal)
+
+    timer_path = UNIT_DIR / TIMER_NAME
+    timer_path.write_text(timer_content, encoding="utf-8")
+    logger.info(
+        "Wrote timer: sunrise=%s sunset=%s → %s", sunrise_cal, sunset_cal, timer_path
+    )
+
+    _run_systemctl("daemon-reload")
+
+
+def enable() -> None:
+    """Enable and start the Solaris timer.
+
+    Equivalent to: systemctl --user enable --now solaris-update.timer
+    """
+    success = _run_systemctl("enable", "--now", TIMER_NAME)
+    if success:
+        logger.info("Solaris timer enabled and started.")
+    else:
+        logger.error("Failed to enable Solaris timer.")
+
+
+def disable() -> None:
+    """Stop and disable the Solaris timer.
+
+    Equivalent to: systemctl --user disable --now solaris-update.timer
+    """
+    success = _run_systemctl("disable", "--now", TIMER_NAME)
+    if success:
+        logger.info("Solaris timer disabled.")
+    else:
+        logger.error("Failed to disable Solaris timer.")
+
+
+def is_enabled() -> bool:
+    """Return True if the Solaris timer unit is currently enabled.
+
+    Returns:
+        True if `systemctl --user is-enabled solaris-update.timer` exits 0.
+    """
+    result = subprocess.run(
+        ["systemctl", "--user", "is-enabled", TIMER_NAME],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def is_active() -> bool:
+    """Return True if the Solaris timer unit is currently active (running).
+
+    Returns:
+        True if `systemctl --user is-active solaris-update.timer` exits 0.
+    """
+    result = subprocess.run(
+        ["systemctl", "--user", "is-active", TIMER_NAME],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def trigger_now() -> None:
+    """Manually trigger a one-shot execution of the Solaris service.
+
+    Equivalent to: systemctl --user start solaris-update.service
+    """
+    success = _run_systemctl("start", SERVICE_NAME)
+    if success:
+        logger.info("Solaris service triggered manually.")
+    else:
+        logger.error("Failed to trigger Solaris service.")

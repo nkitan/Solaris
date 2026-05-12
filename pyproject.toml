@@ -1,7 +1,7 @@
 [project]
 name = "solaris"
 version = "0.1.0"
-description = "Add your description here"
+description = "Solar-aware GNOME theme orchestration utility for Arch Linux"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -9,3 +9,13 @@ dependencies = [
     "pygobject>=3.56.3",
     "pyxdg>=0.28",
 ]
+
+[project.scripts]
+solaris = "solaris.cli:main"
+
+[project.gui-scripts]
+solaris-gui = "solaris.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -9,8 +9,8 @@
 - **Purpose:** Solar-aware theme orchestration for Arch Linux — automatically switches GTK/Shell themes and Firefox CSS at sunrise/sunset using systemd user timers.
 
 ## Tech Stack
-- **Language:** Python 3.13+ (strict typing with `from __future__ import annotations`)
-- **Package Manager:** uv
+- **Language:** Python 3.13+ using uv run / uv python (strict typing with `from __future__ import annotations`)
+- **Package Manager:** uv (using uv pip)
 - **GUI Framework:** PyGObject (gi) with Libadwaita (GTK4)
 - **Key Libraries:** astral (solar calculations), pyxdg (XDG paths)
 - **System Integration:** gsettings (dconf), systemd user units, Firefox userChrome.css

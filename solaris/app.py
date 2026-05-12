@@ -52,7 +52,7 @@ class SolarisWindow(Adw.ApplicationWindow):
             self._status_page,
             "status",
             "Status",
-            "video-display-symbolic",
+            "dialog-information-symbolic",
         )
 
         prefs_page = PreferencesPage(cfg=self._cfg)

@@ -33,7 +33,7 @@ class PreferencesPage(Adw.PreferencesPage):
         self._cfg = cfg
         self._geoclue_timeout_id: int | None = None
 
-        self.set_icon_name("preferences-system-symbolic")
+        self.set_icon_name("emblem-system-symbolic")
         self.set_title("Preferences")
 
         self._build_theme_group()

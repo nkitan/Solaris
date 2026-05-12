@@ -57,7 +57,7 @@ class StatusPage(Adw.PreferencesPage):
         self._calculator = SolarCalculator(cfg.latitude, cfg.longitude)
         self._countdown_timer_id: int | None = None
 
-        self.set_icon_name("preferences-desktop-display-symbolic")
+        self.set_icon_name("dialog-information-symbolic")
         self.set_title("Status")
 
         self._build_status_group()
@@ -86,9 +86,6 @@ class StatusPage(Adw.PreferencesPage):
         # Mode row — icon + label
         self._mode_row = Adw.ActionRow()
         self._mode_row.set_title("Active Mode")
-        self._mode_icon = Gtk.Image()
-        self._mode_icon.set_pixel_size(32)
-        self._mode_row.add_prefix(self._mode_icon)
         self._mode_label = Gtk.Label()
         self._mode_label.add_css_class("dim-label")
         self._mode_row.add_suffix(self._mode_label)
@@ -231,13 +228,10 @@ class StatusPage(Adw.PreferencesPage):
         """
         mode = theme_engine.get_current_mode()
         if mode == "light":
-            self._mode_icon.set_from_icon_name(_ICON_LIGHT)
             self._mode_label.set_text("\u2600\ufe0f  Light Mode")
         elif mode == "dark":
-            self._mode_icon.set_from_icon_name(_ICON_DARK)
             self._mode_label.set_text("\U0001f319  Dark Mode")
         else:
-            self._mode_icon.set_from_icon_name("dialog-question-symbolic")
             self._mode_label.set_text("Unknown")
 
     def _refresh_schedule_subrows(self, schedule_mode: str) -> None:

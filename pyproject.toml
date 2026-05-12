@@ -1,0 +1,11 @@
+[project]
+name = "solaris"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "astral>=3.2",
+    "pygobject>=3.56.3",
+    "pyxdg>=0.28",
+]

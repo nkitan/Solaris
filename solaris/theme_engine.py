@@ -9,6 +9,7 @@ exists when the User Themes extension is installed.
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -78,6 +79,43 @@ def _gsettings_get(schema: str, key: str) -> str | None:
     return result.stdout.strip()
 
 
+def _apply_gtk4_theme(theme_name: str) -> None:
+    """Symlink GTK4 assets and CSS to ~/.config/gtk-4.0/ to theme Libadwaita apps.
+
+    Modern GNOME / Libadwaita ignores the `gtk-theme` gsetting.
+    """
+    theme_dir = Path(f"/usr/share/themes/{theme_name}/gtk-4.0")
+    if not theme_dir.is_dir():
+        theme_dir = Path.home() / ".themes" / theme_name / "gtk-4.0"
+        if not theme_dir.is_dir():
+            logger.debug("No gtk-4.0 directory found for theme %s", theme_name)
+            return
+
+    gtk4_config_dir = Path.home() / ".config" / "gtk-4.0"
+    gtk4_config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clean existing links/files
+    for item in ("assets", "gtk.css", "gtk-dark.css"):
+        dest = gtk4_config_dir / item
+        if dest.is_symlink() or dest.exists():
+            if dest.is_dir() and not dest.is_symlink():
+                shutil.rmtree(dest)
+            else:
+                dest.unlink()
+
+    # Symlink new assets and CSS
+    assets_src = theme_dir / "assets"
+    if assets_src.exists():
+        (gtk4_config_dir / "assets").symlink_to(assets_src)
+
+    for css_file in ("gtk.css", "gtk-dark.css"):
+        src = theme_dir / css_file
+        if src.exists():
+            (gtk4_config_dir / css_file).symlink_to(src)
+
+    logger.debug("Symlinked GTK4 assets for %s", theme_name)
+
+
 def apply_light(config: SolarisConfig) -> None:
     """Apply the light theme configuration from config.
 
@@ -91,6 +129,7 @@ def apply_light(config: SolarisConfig) -> None:
 
     _gsettings_set(_SCHEMA_INTERFACE, _KEY_GTK_THEME, config.light_gtk_theme)
     _gsettings_set(_SCHEMA_INTERFACE, _KEY_COLOR_SCHEME, config.light_color_scheme)
+    _apply_gtk4_theme(config.light_gtk_theme)
 
     shell_ok = _gsettings_set(
         _SCHEMA_USER_THEME, _KEY_SHELL_THEME_NAME, config.light_shell_theme
@@ -114,6 +153,7 @@ def apply_dark(config: SolarisConfig) -> None:
 
     _gsettings_set(_SCHEMA_INTERFACE, _KEY_GTK_THEME, config.dark_gtk_theme)
     _gsettings_set(_SCHEMA_INTERFACE, _KEY_COLOR_SCHEME, config.dark_color_scheme)
+    _apply_gtk4_theme(config.dark_gtk_theme)
 
     shell_ok = _gsettings_set(
         _SCHEMA_USER_THEME, _KEY_SHELL_THEME_NAME, config.dark_shell_theme
@@ -139,7 +179,7 @@ def get_current_mode() -> str:
     # gsettings returns GVariant strings with surrounding quotes: 'prefer-dark'
     clean_value = raw_value.strip("'\"")
 
-    if clean_value == "prefer-light":
+    if clean_value in ("prefer-light", "default"):
         return "light"
     if clean_value == "prefer-dark":
         return "dark"

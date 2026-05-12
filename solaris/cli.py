@@ -1,6 +1,6 @@
 """Solaris CLI entry point.
 
-Exposes headless, non-GUI operations so that the systemd service unit
+Exposes headless, non-GUI operations so that the systemd service units
 and shell scripts can drive Solaris without launching a GUI.
 
 Usage examples:
@@ -10,6 +10,7 @@ Usage examples:
   solaris --auto
   solaris --install-timer
   solaris --update-timer
+  solaris --watch
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from solaris import __version__
 from solaris import config as config_module
 from solaris import firefox, systemd_manager, theme_engine
 from solaris.solar import SolarCalculator
+from solaris.watcher import DarkStyleWatcher
 
 logger = logging.getLogger(__name__)
 
@@ -145,23 +147,28 @@ def _handle_status(cfg: config_module.SolarisConfig) -> None:
     current_mode = theme_engine.get_current_mode()
     timer_active = systemd_manager.is_active()
     timer_enabled = systemd_manager.is_enabled()
+    watcher_active = systemd_manager.is_watcher_active()
+    watcher_enabled = systemd_manager.is_watcher_enabled()
 
     print(f"Solaris v{__version__}")
-    print(f"  Current mode   : {current_mode}")
-    print(f"  Schedule mode  : {cfg.schedule_mode}")
+    print(f"  Current mode      : {current_mode}")
+    print(f"  Schedule mode     : {cfg.schedule_mode}")
 
     if cfg.schedule_mode == config_module.SCHEDULE_MODE_SOLAR:
         calculator = SolarCalculator(cfg.latitude, cfg.longitude)
         countdown = calculator.format_countdown()
-        print(f"  Next transition: {countdown}")
-        print(f"  Location       : {cfg.latitude}°N, {cfg.longitude}°E")
+        print(f"  Next transition   : {countdown}")
+        print(f"  Location          : {cfg.latitude}°N, {cfg.longitude}°E")
     elif cfg.schedule_mode == config_module.SCHEDULE_MODE_MANUAL:
-        print(f"  Manual mode    : {cfg.manual_mode}")
+        print(f"  Manual mode       : {cfg.manual_mode}")
     elif cfg.schedule_mode == config_module.SCHEDULE_MODE_TIME:
-        print(f"  Light window   : {cfg.time_light_start} – {cfg.time_dark_start}")
+        print(f"  Light window      : {cfg.time_light_start} – {cfg.time_dark_start}")
 
-    print(f"  Timer active   : {'yes' if timer_active else 'no'}")
-    print(f"  Timer enabled  : {'yes' if timer_enabled else 'no'}")
+    print(f"  Timer active      : {'yes' if timer_active else 'no'}")
+    print(f"  Timer enabled     : {'yes' if timer_enabled else 'no'}")
+    print(f"  Dark Style watcher: {'active ✅' if watcher_active else 'inactive'}")
+    print(f"  Watcher enabled   : {'yes' if watcher_enabled else 'no'}")
+    print(f"  Follow Dark Style : {'yes' if cfg.follow_dark_style else 'no'}")
 
 
 def _handle_install_timer(cfg: config_module.SolarisConfig) -> None:
@@ -171,7 +178,8 @@ def _handle_install_timer(cfg: config_module.SolarisConfig) -> None:
         UNIT_DIR = systemd_manager.UNIT_DIR
         UNIT_DIR.mkdir(parents=True, exist_ok=True)
         service_path = UNIT_DIR / systemd_manager.SERVICE_NAME
-        service_path.write_text(systemd_manager._SERVICE_TEMPLATE, encoding="utf-8")
+        service_content = systemd_manager._SERVICE_TEMPLATE.format(python_path=sys.executable)
+        service_path.write_text(service_content, encoding="utf-8")
         systemd_manager.update_timer_time_based(
             cfg.time_light_start, cfg.time_dark_start
         )
@@ -279,6 +287,14 @@ Examples:
         action="store_true",
         help="Recalculate solar times and rewrite the timer unit.",
     )
+    group.add_argument(
+        "--watch",
+        action="store_true",
+        help=(
+            "Start the Dark Style watcher: block and sync themes whenever the "
+            "GNOME color-scheme GSettings key changes. Used by solaris-watcher.service."
+        ),
+    )
 
     return parser
 
@@ -286,6 +302,18 @@ Examples:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+def _handle_watch() -> None:
+    """Start the blocking Dark Style watcher loop.
+
+    Called by solaris-watcher.service via `solaris --watch`.
+    Applies the current color-scheme theme immediately on startup,
+    then blocks until SIGTERM or SIGINT is received.
+    """
+    logger.info("Starting Dark Style watcher.")
+    watcher = DarkStyleWatcher()
+    watcher.start()  # blocks until signal
+
 
 def main() -> None:
     """CLI entry point called by the `solaris` console script."""
@@ -308,6 +336,8 @@ def main() -> None:
         _handle_install_timer(cfg)
     elif args.update_timer:
         _handle_update_timer(cfg)
+    elif args.watch:
+        _handle_watch()
 
 
 if __name__ == "__main__":

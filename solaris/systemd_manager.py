@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import sys
 from pathlib import Path
 from typing import NamedTuple
 
@@ -22,6 +23,7 @@ UNIT_DIR = Path.home() / ".config" / "systemd" / "user"
 
 SERVICE_NAME = "solaris-update.service"
 TIMER_NAME = "solaris-update.timer"
+WATCHER_SERVICE_NAME = "solaris-watcher.service"
 
 # ---------------------------------------------------------------------------
 # Unit file templates
@@ -36,7 +38,7 @@ Requires=graphical-session.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/env python3 -m solaris.cli --auto
+ExecStart={python_path} -m solaris.cli --auto
 Environment=DISPLAY=:0
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
 """
@@ -134,8 +136,9 @@ def install_units(sunrise, sunset) -> None:
     """
     UNIT_DIR.mkdir(parents=True, exist_ok=True)
 
+    service_content = _SERVICE_TEMPLATE.format(python_path=sys.executable)
     service_path = UNIT_DIR / SERVICE_NAME
-    service_path.write_text(_SERVICE_TEMPLATE, encoding="utf-8")
+    service_path.write_text(service_content, encoding="utf-8")
     logger.info("Wrote %s", service_path)
 
     update_timer(sunrise, sunset)
@@ -255,3 +258,95 @@ def update_timer_time_based(light_start: str, dark_start: str) -> None:
 
     _run_systemctl("daemon-reload")
 
+
+# ---------------------------------------------------------------------------
+# Dark Style Watcher service
+# ---------------------------------------------------------------------------
+
+_WATCHER_SERVICE_TEMPLATE = """\
+[Unit]
+Description=Solaris Dark Style Watcher
+Documentation=https://github.com/notroot/solaris
+After=graphical-session.target
+Requires=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart={python_path} -m solaris.cli --watch
+Restart=on-failure
+RestartSec=5
+Environment=DISPLAY=:0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+
+[Install]
+WantedBy=graphical-session.target
+"""
+
+
+def install_watcher_service() -> None:
+    """Write the solaris-watcher.service unit file and reload the daemon.
+
+    This is a long-running (Type=simple) service that listens to the
+    GNOME color-scheme GSettings key and syncs themes in real time.
+    """
+    UNIT_DIR.mkdir(parents=True, exist_ok=True)
+    service_content = _WATCHER_SERVICE_TEMPLATE.format(python_path=sys.executable)
+    service_path = UNIT_DIR / WATCHER_SERVICE_NAME
+    service_path.write_text(service_content, encoding="utf-8")
+    logger.info("Wrote %s", service_path)
+    _run_systemctl("daemon-reload")
+
+
+def enable_watcher() -> None:
+    """Enable and immediately start the Dark Style watcher service.
+
+    Equivalent to: systemctl --user enable --now solaris-watcher.service
+    """
+    install_watcher_service()
+    success = _run_systemctl("enable", "--now", WATCHER_SERVICE_NAME)
+    if success:
+        logger.info("Dark Style watcher enabled and started.")
+    else:
+        logger.error("Failed to enable Dark Style watcher.")
+
+
+def disable_watcher() -> None:
+    """Stop and disable the Dark Style watcher service.
+
+    Equivalent to: systemctl --user disable --now solaris-watcher.service
+    """
+    success = _run_systemctl("disable", "--now", WATCHER_SERVICE_NAME)
+    if success:
+        logger.info("Dark Style watcher disabled.")
+    else:
+        logger.error("Failed to disable Dark Style watcher.")
+
+
+def is_watcher_active() -> bool:
+    """Return True if the Dark Style watcher service is currently running.
+
+    Returns:
+        True if `systemctl --user is-active solaris-watcher.service` exits 0.
+    """
+    result = subprocess.run(
+        ["systemctl", "--user", "is-active", WATCHER_SERVICE_NAME],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def is_watcher_enabled() -> bool:
+    """Return True if the Dark Style watcher service is enabled at login.
+
+    Returns:
+        True if `systemctl --user is-enabled solaris-watcher.service` exits 0.
+    """
+    result = subprocess.run(
+        ["systemctl", "--user", "is-enabled", WATCHER_SERVICE_NAME],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0

@@ -31,6 +31,7 @@ class PreferencesPage(Adw.PreferencesPage):
         super().__init__(**kwargs)
 
         self._cfg = cfg
+        self._geoclue_timeout_id: int | None = None
 
         self.set_icon_name("preferences-system-symbolic")
         self.set_title("Preferences")
@@ -253,6 +254,9 @@ class PreferencesPage(Adw.PreferencesPage):
 
     def _start_geoclue_request(self) -> None:
         """Initiate a GeoClue2 D-Bus location request asynchronously."""
+        # Add a 10-second timeout to prevent getting stuck
+        self._geoclue_timeout_id = GLib.timeout_add_seconds(10, self._on_geoclue_timeout)
+
         Gio.DBusProxy.new_for_bus(
             Gio.BusType.SYSTEM,
             Gio.DBusProxyFlags.NONE,
@@ -263,6 +267,34 @@ class PreferencesPage(Adw.PreferencesPage):
             None,
             self._on_geoclue_manager_ready,
         )
+
+    def _on_geoclue_timeout(self) -> bool:
+        """Fallback to IP-based location if GeoClue2 takes too long."""
+        logger.warning("GeoClue2 request timed out — falling back to IP geolocation.")
+        self._geoclue_timeout_id = None
+        import threading
+        threading.Thread(target=self._ip_fallback_request, daemon=True).start()
+        return GLib.SOURCE_REMOVE
+
+    def _ip_fallback_request(self) -> None:
+        """Attempt IP-based geolocation using ipapi.co (runs in a background thread)."""
+        import urllib.request
+        import json
+        try:
+            req = urllib.request.Request(
+                "https://ipapi.co/json/",
+                headers={"User-Agent": "solaris/0.1.0 (https://github.com/notroot/solaris)"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                if "latitude" not in data or "longitude" not in data:
+                    raise ValueError("Invalid response from IP API")
+                lat = float(data["latitude"])
+                lon = float(data["longitude"])
+                GLib.idle_add(self._apply_detected_location, lat, lon)
+        except Exception as exc:
+            GLib.idle_add(self._show_detect_error, f"IP fallback failed: {exc}")
+            GLib.idle_add(self._reset_detect_button)
 
     def _on_geoclue_manager_ready(self, source, result) -> None:
         """Callback when GeoClue2 Manager proxy is ready."""
@@ -361,6 +393,10 @@ class PreferencesPage(Adw.PreferencesPage):
 
     def _reset_detect_button(self) -> None:
         """Re-enable the detect button after an async operation completes."""
+        if self._geoclue_timeout_id is not None:
+            GLib.source_remove(self._geoclue_timeout_id)
+            self._geoclue_timeout_id = None
+
         self._detect_button.set_sensitive(True)
         self._detect_button.set_label("Detect")
 

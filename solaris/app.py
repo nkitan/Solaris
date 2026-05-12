@@ -52,7 +52,7 @@ class SolarisWindow(Adw.ApplicationWindow):
             self._status_page,
             "status",
             "Status",
-            "preferences-desktop-display-symbolic",
+            "video-display-symbolic",
         )
 
         prefs_page = PreferencesPage(cfg=self._cfg)
@@ -60,7 +60,7 @@ class SolarisWindow(Adw.ApplicationWindow):
             prefs_page,
             "preferences",
             "Preferences",
-            "preferences-system-symbolic",
+            "emblem-system-symbolic",
         )
 
         # ViewSwitcher bar at the bottom (mobile-friendly).

@@ -64,6 +64,7 @@ class StatusPage(Adw.PreferencesPage):
         self._build_schedule_group()
         self._build_apply_group()
         self._build_timer_group()
+        self._build_integration_group()
 
         # Start the live countdown.
         self._update_countdown()
@@ -201,6 +202,23 @@ class StatusPage(Adw.PreferencesPage):
 
         group.add(self._timer_row)
         self._refresh_timer_display()
+
+    def _build_integration_group(self) -> None:
+        """Build the GNOME Integration settings group."""
+        group = Adw.PreferencesGroup()
+        group.set_title("GNOME Integration")
+        self.add(group)
+
+        self._follow_dark_style_row = Adw.SwitchRow()
+        self._follow_dark_style_row.set_title("Follow GNOME Dark Style")
+        self._follow_dark_style_row.set_subtitle(
+            "Automatically apply Solaris themes when the GNOME quick-settings toggle changes"
+        )
+        self._follow_dark_style_row.set_active(self._cfg.follow_dark_style)
+        self._follow_dark_style_row.connect(
+            "notify::active", self._on_follow_dark_style_toggled
+        )
+        group.add(self._follow_dark_style_row)
 
     # ------------------------------------------------------------------
     # State refresh helpers
@@ -395,6 +413,19 @@ class StatusPage(Adw.PreferencesPage):
             systemd_manager.enable()
 
         self._refresh_timer_display()
+
+    def _on_follow_dark_style_toggled(
+        self, switch_row: Adw.SwitchRow, _param
+    ) -> None:
+        """Enable or disable the Dark Style watcher service."""
+        is_active = switch_row.get_active()
+        self._cfg.follow_dark_style = is_active
+        config_module.save(self._cfg)
+
+        if is_active:
+            systemd_manager.enable_watcher()
+        else:
+            systemd_manager.disable_watcher()
 
     def cleanup(self) -> None:
         """Cancel the GLib countdown timer. Call before destroying the page."""

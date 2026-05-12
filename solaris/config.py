@@ -71,6 +71,11 @@ class SolarisConfig:
     time_light_start: str = "07:00"   # switch TO light at this time
     time_dark_start: str = "20:00"    # switch TO dark at this time
 
+    # --- Dark Style Sync ---
+    # When True, solaris-watcher.service is enabled and reacts to the
+    # GNOME "Dark Style" quick-settings toggle in real time.
+    follow_dark_style: bool = False
+
     def __post_init__(self) -> None:
         """Validate all fields immediately after construction."""
         _validate_latitude(self.latitude)
@@ -78,6 +83,7 @@ class SolarisConfig:
         _validate_schedule_mode(self.schedule_mode)
         _validate_hhmm(self.time_light_start, field_name="time_light_start")
         _validate_hhmm(self.time_dark_start, field_name="time_dark_start")
+
 
 
 # ---------------------------------------------------------------------------

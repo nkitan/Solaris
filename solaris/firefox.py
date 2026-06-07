@@ -33,8 +33,22 @@ _DEFAULT_BLOCK = """\
 /* SOLARIS_THEME_END */
 """
 
-_FIREFOX_DIR = Path.home() / ".mozilla" / "firefox"
-_PROFILES_INI = _FIREFOX_DIR / "profiles.ini"
+def _get_firefox_paths() -> tuple[Path, Path]:
+    """Return the (firefox_dir, profiles_ini_path) to use."""
+    # Check ~/.mozilla/firefox/profiles.ini
+    dir_mozilla = Path.home() / ".mozilla" / "firefox"
+    ini_mozilla = dir_mozilla / "profiles.ini"
+    if ini_mozilla.exists():
+        return dir_mozilla, ini_mozilla
+
+    # Check ~/.config/mozilla/firefox/profiles.ini
+    dir_config = Path.home() / ".config" / "mozilla" / "firefox"
+    ini_config = dir_config / "profiles.ini"
+    if ini_config.exists():
+        return dir_config, ini_config
+
+    # Default to ~/.mozilla/firefox/profiles.ini if neither exists
+    return dir_mozilla, ini_mozilla
 
 
 # ---------------------------------------------------------------------------
@@ -44,20 +58,25 @@ _PROFILES_INI = _FIREFOX_DIR / "profiles.ini"
 def find_active_profile() -> Path | None:
     """Locate the active Firefox profile directory.
 
-    Reads ~/.mozilla/firefox/profiles.ini and returns the path of the first
-    profile marked Default=1, or the first profile in the [Profile0] section
-    as a fallback.
+    Reads ~/.mozilla/firefox/profiles.ini or ~/.config/mozilla/firefox/profiles.ini
+    and returns the path of the first profile marked Default=1, or the first profile
+    in the [Profile0] section as a fallback.
 
     Returns:
         An absolute Path to the profile directory, or None if Firefox is not
         installed or no usable profile is found.
     """
-    if not _PROFILES_INI.exists():
-        logger.warning("Firefox profiles.ini not found at %s.", _PROFILES_INI)
+    firefox_dir, profiles_ini = _get_firefox_paths()
+    if not profiles_ini.exists():
+        logger.warning(
+            "Firefox profiles.ini not found at %s or %s.",
+            Path.home() / ".mozilla" / "firefox" / "profiles.ini",
+            Path.home() / ".config" / "mozilla" / "firefox" / "profiles.ini",
+        )
         return None
 
     parser = configparser.ConfigParser()
-    parser.read(_PROFILES_INI, encoding="utf-8")
+    parser.read(profiles_ini, encoding="utf-8")
 
     default_profile_path: str | None = None
     fallback_profile_path: str | None = None
@@ -74,7 +93,7 @@ def find_active_profile() -> Path | None:
             continue
 
         resolved_path = (
-            str(_FIREFOX_DIR / raw_path) if is_relative else raw_path
+            str(firefox_dir / raw_path) if is_relative else raw_path
         )
 
         if is_default:
@@ -84,7 +103,7 @@ def find_active_profile() -> Path | None:
 
     chosen = default_profile_path or fallback_profile_path
     if chosen is None:
-        logger.warning("No usable Firefox profile found in %s.", _PROFILES_INI)
+        logger.warning("No usable Firefox profile found in %s.", profiles_ini)
         return None
 
     profile_path = Path(chosen)
@@ -109,7 +128,7 @@ def ensure_chrome_dir(profile_path: Path) -> Path:
     Returns:
         Path to the chrome/ directory.
     """
-    chrome_dir = profile_path / "chrome"
+    chrome_dir = (profile_path / "chrome").resolve()
     chrome_dir.mkdir(parents=True, exist_ok=True)
     return chrome_dir
 
@@ -207,11 +226,15 @@ def apply_theme(mode: str) -> bool:
 
     chrome_dir = ensure_chrome_dir(profile_path)
     existing_content = _read_user_chrome(chrome_dir)
-    _backup_user_chrome(chrome_dir)
 
     new_block = _build_replacement_block(mode)
     updated_content = _inject_block(existing_content, new_block)
 
+    if existing_content == updated_content:
+        logger.debug("Firefox userChrome.css is already up to date, skipping write.")
+        return True
+
+    _backup_user_chrome(chrome_dir)
     try:
         (chrome_dir / "userChrome.css").write_text(updated_content, encoding="utf-8")
     except OSError as exc:

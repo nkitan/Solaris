@@ -18,7 +18,7 @@ gi.require_version("Adw", "1")
 from gi.repository import Adw, Gio, GLib, Gtk
 
 from solaris import config as config_module
-from solaris import firefox, theme_engine
+from solaris import firefox, ghostty, theme_engine
 from solaris.solar import SolarCalculator
 
 logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ class PreferencesPage(Adw.PreferencesPage):
         self._build_theme_group()
         self._build_location_group()
         self._build_firefox_group()
+        self._build_ghostty_group()
 
     # ------------------------------------------------------------------
     # Group builders
@@ -174,6 +175,73 @@ class PreferencesPage(Adw.PreferencesPage):
         profile_row.add_suffix(self._profile_label)
         group.add(profile_row)
 
+    def _build_ghostty_group(self) -> None:
+        """Build the Ghostty integration group."""
+        group = Adw.PreferencesGroup()
+        group.set_title("Ghostty")
+        group.set_description("Patch Ghostty config with Solaris themes and reload on change")
+        self.add(group)
+
+        self._ghostty_switch_row = Adw.SwitchRow()
+        self._ghostty_switch_row.set_title("Ghostty Integration")
+        self._ghostty_switch_row.set_subtitle(
+            "Apply themes to Ghostty and reload running terminals"
+        )
+        self._ghostty_switch_row.set_active(self._cfg.ghostty_integration)
+        self._ghostty_switch_row.connect("notify::active", self._on_ghostty_toggled)
+        group.add(self._ghostty_switch_row)
+
+        all_ghostty_themes = ghostty.scan_themes()
+        if not all_ghostty_themes:
+            all_ghostty_themes = ["(no themes found)"]
+
+        ghostty_theme_list = Gtk.StringList()
+        for theme_name in all_ghostty_themes:
+            ghostty_theme_list.append(theme_name)
+
+        def _make_ghostty_combo(title: str, subtitle: str, current_value: str) -> Adw.ComboRow:
+            row = Adw.ComboRow()
+            row.set_title(title)
+            row.set_subtitle(subtitle)
+            row.set_model(ghostty_theme_list)
+            try:
+                idx = all_ghostty_themes.index(current_value)
+            except ValueError:
+                idx = 0
+            row.set_selected(idx)
+            return row
+
+        self._light_ghostty_row = _make_ghostty_combo(
+            "Light Ghostty Theme", "Applied during daytime", self._cfg.light_ghostty_theme
+        )
+        self._light_ghostty_row.connect("notify::selected", self._on_ghostty_theme_changed)
+        group.add(self._light_ghostty_row)
+
+        self._dark_ghostty_row = _make_ghostty_combo(
+            "Dark Ghostty Theme", "Applied during night", self._cfg.dark_ghostty_theme
+        )
+        self._dark_ghostty_row.connect("notify::selected", self._on_ghostty_theme_changed)
+        group.add(self._dark_ghostty_row)
+
+        decor_list = Gtk.StringList()
+        decors = ("auto", "none", "client", "server")
+        for d in decors:
+            decor_list.append(d)
+
+        self._ghostty_decor_row = Adw.ComboRow()
+        self._ghostty_decor_row.set_title("Window Decoration")
+        self._ghostty_decor_row.set_subtitle("Preference for window titlebar style")
+        self._ghostty_decor_row.set_model(decor_list)
+        try:
+            idx = decors.index(self._cfg.ghostty_window_decoration)
+        except ValueError:
+            idx = 0
+        self._ghostty_decor_row.set_selected(idx)
+        self._ghostty_decor_row.connect("notify::selected", self._on_ghostty_decoration_changed)
+        group.add(self._ghostty_decor_row)
+
+        self._all_ghostty_themes = all_ghostty_themes
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -234,6 +302,40 @@ class PreferencesPage(Adw.PreferencesPage):
         """Persist the Firefox integration toggle state."""
         self._cfg.firefox_integration = switch_row.get_active()
         config_module.save(self._cfg)
+
+    def _on_ghostty_toggled(self, switch_row: Adw.SwitchRow, _param) -> None:
+        """Persist the Ghostty integration toggle state."""
+        self._cfg.ghostty_integration = switch_row.get_active()
+        config_module.save(self._cfg)
+        self._apply_ghostty_theme_if_active()
+
+    def _on_ghostty_theme_changed(self, _combo_row: Adw.ComboRow, _param) -> None:
+        """Persist updated Ghostty theme selections when any dropdown changes."""
+        themes = self._all_ghostty_themes
+
+        def _get_theme(row: Adw.ComboRow) -> str:
+            idx = row.get_selected()
+            return themes[idx] if idx < len(themes) else themes[0]
+
+        self._cfg.light_ghostty_theme = _get_theme(self._light_ghostty_row)
+        self._cfg.dark_ghostty_theme = _get_theme(self._dark_ghostty_row)
+        config_module.save(self._cfg)
+        self._apply_ghostty_theme_if_active()
+
+    def _on_ghostty_decoration_changed(self, combo_row: Adw.ComboRow, _param) -> None:
+        """Persist updated Ghostty window decoration selection."""
+        decors = ("auto", "none", "client", "server")
+        idx = combo_row.get_selected()
+        self._cfg.ghostty_window_decoration = decors[idx] if idx < len(decors) else "auto"
+        config_module.save(self._cfg)
+        self._apply_ghostty_theme_if_active()
+
+    def _apply_ghostty_theme_if_active(self) -> None:
+        """Apply Ghostty theme and config stack immediately if integration is enabled."""
+        if self._cfg.ghostty_integration:
+            mode = theme_engine.get_current_mode()
+            if mode in ("light", "dark"):
+                ghostty.apply_theme(mode, self._cfg)
 
     def _on_detect_location(self, _button: Gtk.Button) -> None:
         """Request the current location from GeoClue2 via D-Bus.

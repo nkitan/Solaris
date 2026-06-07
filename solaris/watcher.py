@@ -24,7 +24,7 @@ gi.require_version("GLib", "2.0")
 from gi.repository import Gio, GLib
 
 from solaris import config as config_module
-from solaris import firefox, theme_engine
+from solaris import firefox, ghostty, theme_engine
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class DarkStyleWatcher:
       - GTK theme via gsettings
       - GNOME Shell theme via gsettings (if User Themes extension is enabled)
       - Firefox userChrome.css patch (if firefox_integration is True)
+      - Ghostty theme (if ghostty_integration is True)
 
     The watcher reloads config from disk on every change, so updates made
     via the GUI or CLI while the watcher is running are always respected.
@@ -49,6 +50,7 @@ class DarkStyleWatcher:
         self._settings = Gio.Settings(schema=_INTERFACE_SCHEMA)
         self._main_loop = GLib.MainLoop()
         self._handler_id: int | None = None
+        self._last_applied_mode: str | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -127,6 +129,11 @@ class DarkStyleWatcher:
         # "prefer-dark" → dark; everything else ("prefer-light", "default") → light
         mode = "dark" if current_value == "prefer-dark" else "light"
 
+        if mode == self._last_applied_mode:
+            logger.debug("Watcher mode %s is already active, skipping sync.", mode)
+            return
+
+        self._last_applied_mode = mode
         cfg = config_module.load()
         _apply_mode(mode, cfg)
 
@@ -149,5 +156,8 @@ def _apply_mode(mode: str, cfg: config_module.SolarisConfig) -> None:
 
     if cfg.firefox_integration:
         firefox.apply_theme(mode)
+
+    if cfg.ghostty_integration:
+        ghostty.apply_theme(mode, cfg)
 
     logger.info("Theme stack applied: mode=%s", mode)

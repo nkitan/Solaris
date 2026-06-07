@@ -58,6 +58,12 @@ class SolarisConfig:
     # --- Firefox Integration ---
     firefox_integration: bool = True
 
+    # --- Ghostty Integration ---
+    ghostty_integration: bool = True
+    light_ghostty_theme: str = "Catppuccin Latte"
+    dark_ghostty_theme: str = "Catppuccin Frappe"
+    ghostty_window_decoration: str = "auto"
+
     # --- Schedule Mode ---
     # "solar"  — switch at local sunrise/sunset (default)
     # "manual" — always stay in one mode (see manual_mode)
@@ -83,12 +89,22 @@ class SolarisConfig:
         _validate_schedule_mode(self.schedule_mode)
         _validate_hhmm(self.time_light_start, field_name="time_light_start")
         _validate_hhmm(self.time_dark_start, field_name="time_dark_start")
+        _validate_ghostty_window_decoration(self.ghostty_window_decoration)
 
 
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+def _validate_ghostty_window_decoration(value: str) -> None:
+    """Raise ValueError if ghostty_window_decoration is not valid."""
+    valid_decors = ("auto", "none", "client", "server")
+    if value not in valid_decors:
+        raise ValueError(
+            f"ghostty_window_decoration must be one of {valid_decors!r}, got {value!r}"
+        )
+
 
 def _validate_latitude(value: float) -> None:
     """Raise ValueError if latitude is out of the valid WGS-84 range."""

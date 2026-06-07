@@ -26,7 +26,7 @@ from solaris.config import (
     SCHEDULE_MODE_SOLAR,
     SCHEDULE_MODE_TIME,
 )
-from solaris import firefox, systemd_manager, theme_engine
+from solaris import firefox, ghostty, systemd_manager, theme_engine
 from solaris.solar import SolarCalculator
 
 logger = logging.getLogger(__name__)
@@ -369,7 +369,7 @@ class StatusPage(Adw.PreferencesPage):
         config_module.save(self._cfg)
 
     def _on_apply_clicked(self, _button: Gtk.Button) -> None:
-        """Apply the correct mode for the current schedule, patching color-scheme and Firefox."""
+        """Apply the correct mode for the current schedule, patching color-scheme, Firefox, and Ghostty."""
         mode = self._resolve_current_mode()
 
         if mode == "light":
@@ -379,6 +379,9 @@ class StatusPage(Adw.PreferencesPage):
 
         if self._cfg.firefox_integration:
             firefox.apply_theme(mode)
+
+        if self._cfg.ghostty_integration:
+            ghostty.apply_theme(mode, self._cfg)
 
         self._refresh_mode_display()
         self._show_toast(f"\u2713 {mode.capitalize()} theme applied")

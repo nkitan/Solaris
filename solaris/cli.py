@@ -22,7 +22,7 @@ from datetime import date
 
 from solaris import __version__
 from solaris import config as config_module
-from solaris import firefox, systemd_manager, theme_engine
+from solaris import firefox, ghostty, systemd_manager, theme_engine
 from solaris.solar import SolarCalculator
 from solaris.watcher import DarkStyleWatcher
 
@@ -48,18 +48,22 @@ def _configure_logging(verbose: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 def _handle_apply_light(cfg: config_module.SolarisConfig) -> None:
-    """Force-apply the light theme and patch Firefox."""
+    """Force-apply the light theme and patch Firefox/Ghostty."""
     theme_engine.apply_light(cfg)
     if cfg.firefox_integration:
         firefox.apply_theme("light")
+    if cfg.ghostty_integration:
+        ghostty.apply_theme("light", cfg)
     print("✓ Light theme applied.")
 
 
 def _handle_apply_dark(cfg: config_module.SolarisConfig) -> None:
-    """Force-apply the dark theme and patch Firefox."""
+    """Force-apply the dark theme and patch Firefox/Ghostty."""
     theme_engine.apply_dark(cfg)
     if cfg.firefox_integration:
         firefox.apply_theme("dark")
+    if cfg.ghostty_integration:
+        ghostty.apply_theme("dark", cfg)
     print("✓ Dark theme applied.")
 
 

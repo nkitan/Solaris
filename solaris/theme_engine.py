@@ -29,7 +29,7 @@ _KEY_SHELL_THEME_NAME = "name"
 
 
 def _gsettings_set(schema: str, key: str, value: str) -> bool:
-    """Run a single `gsettings set` command.
+    """Run a single `gsettings set` command, but only if the value is different.
 
     Args:
         schema: The GSettings schema string.
@@ -39,6 +39,13 @@ def _gsettings_set(schema: str, key: str, value: str) -> bool:
     Returns:
         True on success, False if the command failed (e.g. schema missing).
     """
+    current = _gsettings_get(schema, key)
+    if current is not None:
+        current_clean = current.strip("'\"")
+        if current_clean == value:
+            logger.debug("gsettings %s %s is already %r, skipping set.", schema, key, value)
+            return True
+
     result = subprocess.run(
         ["gsettings", "set", schema, key, value],
         capture_output=True,
@@ -93,6 +100,31 @@ def _apply_gtk4_theme(theme_name: str) -> None:
 
     gtk4_config_dir = Path.home() / ".config" / "gtk-4.0"
     gtk4_config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Check if symlinks are already pointing to the correct files/directories
+    already_correct = True
+    for item in ("assets", "gtk.css", "gtk-dark.css"):
+        dest = gtk4_config_dir / item
+        src = theme_dir / item
+        if src.exists():
+            if not dest.is_symlink():
+                already_correct = False
+                break
+            try:
+                if dest.resolve() != src.resolve():
+                    already_correct = False
+                    break
+            except Exception:
+                already_correct = False
+                break
+        else:
+            if dest.exists() or dest.is_symlink():
+                already_correct = False
+                break
+
+    if already_correct:
+        logger.debug("GTK4 assets for %s are already symlinked correctly.", theme_name)
+        return
 
     # Clean existing links/files
     for item in ("assets", "gtk.css", "gtk-dark.css"):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+from pathlib import Path
 from typing import NamedTuple
 
 from astral import LocationInfo
@@ -166,7 +167,6 @@ def _local_timezone_name() -> str:
     4. UTC as a safe fallback
     """
     import os
-    import zoneinfo
 
     # 1. Read /etc/localtime symlink (Arch Linux standard)
     localtime_path = "/etc/localtime"

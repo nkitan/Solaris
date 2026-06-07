@@ -15,7 +15,7 @@
 - [x] Implement `load()` — JSON → dataclass (create default if missing)
 - [x] Implement `save()` — atomic write (write-to-temp, rename)
 - [x] Use `pyxdg` for `XDG_CONFIG_HOME/solaris/config.json`
-- [ ] Write unit tests for config round-trip and defaults
+- [x] Write unit tests for config round-trip and defaults
 
 ## Phase 3 — Core Engine Modules
 
@@ -25,7 +25,7 @@
 - [x] Implement `get_current_mode()` — read `color-scheme` from gsettings
 - [x] Implement `scan_themes()` — list `/usr/share/themes/` filtered by prefix
 - [x] Gracefully handle missing User Themes GNOME extension (warn, don't crash)
-- [ ] Write unit tests (mock subprocess)
+- [x] Write unit tests (mock subprocess)
 
 ### 3B — Firefox Integration (`solaris/firefox.py`)
 - [x] Implement `find_active_profile()` — parse `profiles.ini` for `Default=1`
@@ -34,14 +34,14 @@
 - [x] Append default template if markers don't exist
 - [x] Implement `ensure_user_chrome_dir()` — create `chrome/` if missing
 - [x] Return `False` (don't raise) if Firefox not installed or no profile found
-- [ ] Write unit tests with sample CSS strings
+- [x] Write unit tests with sample CSS strings
 
 ### 3C — Solar Calculator (`solaris/solar.py`)
 - [x] Implement `SolarCalculator.__init__()` with lat/lon
 - [x] Implement `get_times()` — sunrise/sunset for a given date using `astral`
 - [x] Implement `get_current_mode()` — "light" if between sunrise and sunset
 - [x] Implement `next_transition()` — returns (event_name, datetime) for next switch
-- [ ] Write unit tests with known reference values
+- [x] Write unit tests with known reference values
 
 ### 3D — Systemd Manager (`solaris/systemd_manager.py`)
 - [x] Define service unit template (`solaris-update.service`)
@@ -49,7 +49,7 @@
 - [x] Implement `install_units()` — write files + `daemon-reload`
 - [x] Implement `update_timer()` — recalculate `OnCalendar` + reload
 - [x] Implement `enable()` / `disable()` / `is_enabled()` / `trigger_now()`
-- [ ] Write unit tests (verify generated file content)
+- [x] Write unit tests (verify generated file content)
 
 ## Phase 4 — CLI Entry Point (`solaris/cli.py`)
 - [x] Set up `argparse` with mutually exclusive flags
@@ -86,27 +86,27 @@
 - [x] Wire all widgets to config save/load
 
 ### 5D — GUI Polish
-- [ ] Test GUI launch: `uv run solaris-gui`
-- [ ] Verify all combo rows populate correctly
-- [ ] Verify override toggle persists across restarts
-- [ ] Verify countdown updates in real-time
-- [ ] Test with GNOME dark mode and light mode for visual consistency
+- [x] Test GUI launch: `uv run solaris-gui`
+- [x] Verify all combo rows populate correctly
+- [x] Verify override toggle persists across restarts
+- [x] Verify countdown updates in real-time
+- [x] Test with GNOME dark mode and light mode for visual consistency
 
 ## Phase 6 — Documentation
-- [ ] Update `AGENTS.md` — tailored to Solaris project
-- [ ] Update `GEMINI.md` — Solaris-specific coding context
+- [x] Update `AGENTS.md` — tailored to Solaris project
+- [x] Update `GEMINI.md` — Solaris-specific coding context
 - [x] Update `README.md` — project overview, installation, usage, architecture
 - [x] Update `.gitignore` — add Solaris-specific patterns
 
 ## Phase 7 — Integration Testing & Verification
-- [ ] `uv run solaris --status` — prints mode + next transition
-- [ ] `uv run solaris --apply-light` — visually confirm theme change
-- [ ] `uv run solaris --apply-dark` — visually confirm theme change
+- [x] `uv run solaris --status` — prints mode + next transition
+- [x] `uv run solaris --apply-light` — visually confirm theme change
+- [x] `uv run solaris --apply-dark` — visually confirm theme change
 - [x] `uv run solaris --install-timer` — verify systemd timer is active
-- [ ] `uv run solaris-gui` — full GUI smoke test
-- [ ] Verify Firefox `userChrome.css` patching
-- [ ] Run full test suite: `uv run pytest`
+- [x] `uv run solaris-gui` — full GUI smoke test
+- [x] Verify Firefox `userChrome.css` patching
+- [x] Run full test suite: `uv run pytest`
 
 ---
 
-*Last updated: 2026-05-12*
+*Last updated: 2026-06-07*

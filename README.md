@@ -10,6 +10,8 @@ Solaris works on any Linux distribution running **GNOME with systemd**. The inst
 
 ---
 
+<img width="1000" height="625" alt="solaris-demo-watcher-2(1)" src="https://github.com/user-attachments/assets/f7fa6bb7-bfa5-4a1d-afc9-59d1bb3e52b0" />
+
 ## 🚀 Features & Integrations
 
 Solaris features deep integration across the entire Linux desktop stack, ensuring that when the sun sets, your workspace changes with it:

@@ -161,14 +161,15 @@ def _local_timezone_name() -> str:
     """Return the IANA timezone name for the local system.
 
     Resolution order:
-    1. /etc/localtime symlink target (most reliable on Arch Linux)
-    2. /etc/timezone file content
+    1. /etc/localtime symlink target (standard on Arch, Fedora, openSUSE,
+       and modern Debian/Ubuntu)
+    2. /etc/timezone file content (used by Debian/Ubuntu)
     3. zoneinfo.ZoneInfo key from the current local tzinfo object
     4. UTC as a safe fallback
     """
     import os
 
-    # 1. Read /etc/localtime symlink (Arch Linux standard)
+    # 1. Read /etc/localtime symlink (most modern Linux distros)
     localtime_path = "/etc/localtime"
     try:
         link_target = os.readlink(localtime_path)

@@ -1,10 +1,12 @@
 # Solaris ☀️🌙
 
-**Solar-aware GNOME theme orchestration for Arch Linux.**
+**Solar-aware GNOME theme orchestration for Linux.**
 
 Solaris is a modern, lightweight utility designed to seamlessly transition your system and applications between dark and light themes. It calculates your local sunrise and sunset times automatically or follows your global GNOME theme preference in real time.
 
 Unlike bulky daemons, Solaris handles background scheduling using native systemd user timers (the "self-rescheduling timer pattern") or runs a lightweight event watcher to listen to D-Bus/GSettings signals.
+
+Solaris works on any Linux distribution running **GNOME with systemd**. The installer auto-detects your distro family (Arch, Debian/Ubuntu, Fedora, openSUSE, NixOS) and adapts accordingly.
 
 ---
 
@@ -25,17 +27,40 @@ Solaris features deep integration across the entire Linux desktop stack, ensurin
 
 ## 🛠️ Prerequisites
 
-Before installing Solaris, ensure your system has the required dependencies:
+Before installing Solaris, ensure your system has the required dependencies. The installer detects your distro and prints the right package list if anything is missing — but you can install them ahead of time:
 
-1.  **Arch Linux packages**:
-    ```bash
-    sudo pacman -S python python-gobject libadwaita gtk4 git
-    ```
-2.  **uv (Modern Python Package Manager)**:
-    It is recommended to use `uv` for managing python tools and environments. Install it via:
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    ```
+**Arch Linux / Manjaro / EndeavourOS:**
+```bash
+sudo pacman -S --needed python python-gobject libadwaita gtk4 git
+```
+
+**Debian / Ubuntu / Pop!_OS / Linux Mint (24.04+ / 13+):**
+```bash
+sudo apt install -y python3 python3-gi libadwaita-1-0 libgtk-4-1 git
+```
+
+**Fedora / Nobara:**
+```bash
+sudo dnf install -y python3 python3-gobject libadwaita gtk4 git
+```
+
+**openSUSE:**
+```bash
+sudo zypper install -y python3 python3-gobject libadwaita-1 gtk4 git
+```
+
+**NixOS:** add the following to `environment.systemPackages` (or `home.packages`) in `configuration.nix`:
+```nix
+pkgs.python3 pkgs.python3Packages.pygobject pkgs.libadwaita pkgs.gtk4 pkgs.git
+```
+
+**uv (Modern Python Package Manager)** — used on all distros:
+It is recommended to use `uv` for managing python tools and environments. Install it via:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+> **Note:** The Python/GUI core is distro-agnostic — it talks to GNOME through GSettings/D-Bus, schedules with `systemd --user`, and writes theme files into `~/.config`. As long as GNOME + systemd + the runtime deps above are present, Solaris will work.
 
 ---
 

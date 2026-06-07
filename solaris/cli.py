@@ -240,7 +240,7 @@ def _build_parser() -> argparse.ArgumentParser:
     """Build and return the argument parser."""
     parser = argparse.ArgumentParser(
         prog="solaris",
-        description="Solar-aware GNOME theme orchestrator for Arch Linux.",
+        description="Solar-aware GNOME theme orchestrator.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

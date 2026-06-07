@@ -57,9 +57,10 @@ class StatusPage(Adw.PreferencesPage):
         self._calculator = SolarCalculator(cfg.latitude, cfg.longitude)
         self._countdown_timer_id: int | None = None
 
-        self.set_icon_name("dialog-information-symbolic")
+        self.set_icon_name("io.github.solaris-symbolic")
         self.set_title("Status")
 
+        self._build_logo_group()
         self._build_status_group()
         self._build_schedule_group()
         self._build_apply_group()
@@ -73,6 +74,22 @@ class StatusPage(Adw.PreferencesPage):
     # ------------------------------------------------------------------
     # Widget construction
     # ------------------------------------------------------------------
+
+    def _build_logo_group(self) -> None:
+        """Build a header group containing the centered application logo."""
+        group = Adw.PreferencesGroup()
+        self.add(group)
+
+        logo_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        logo_box.set_halign(Gtk.Align.CENTER)
+        logo_box.set_margin_top(18)
+        logo_box.set_margin_bottom(6)
+
+        self._logo_image = Gtk.Image.new_from_icon_name("io.github.solaris")
+        self._logo_image.set_pixel_size(128)
+        logo_box.append(self._logo_image)
+
+        group.set_header_widget(logo_box)
 
     def _build_status_group(self) -> None:
         """Build the current mode display group (mirrors GNOME Dark Style toggle)."""

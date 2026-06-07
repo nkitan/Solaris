@@ -52,7 +52,7 @@ class SolarisWindow(Adw.ApplicationWindow):
             self._status_page,
             "status",
             "Status",
-            "dialog-information-symbolic",
+            "io.github.solaris-symbolic",
         )
 
         prefs_page = PreferencesPage(cfg=self._cfg)

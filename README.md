@@ -82,6 +82,21 @@ The [install.sh](file:///home/notroot/Work/Solaris/install.sh) script will:
 3.  Install custom application icons (SVG and PNG formats) from `public/favicon` into the user's local icon directory (`~/.local/share/icons/hicolor/`), supporting automatic light/dark adaptive rendering.
 4.  Generate and place a desktop entry at `~/.local/share/applications/solaris.desktop` so you can launch Solaris GUI straight from your GNOME Applications Overview dashboard.
 
+**Optional flags** — By default no systemd units are enabled. Pass flags to set up background services in one step:
+
+```bash
+# Enable solar schedule (sunrise/sunset timer)
+./install.sh --with-solar-timer
+
+# Enable real-time GNOME theme watcher
+./install.sh --with-watcher
+
+# Enable both
+./install.sh --with-solar-timer --with-watcher
+```
+
+Run `./install.sh --help` for a full list of flags.
+
 ### Option 2: Development Install
 
 If you are developing or modifying Solaris, set up a local virtual environment:
@@ -200,6 +215,9 @@ solaris --auto
 
 # Generate and register the systemd timer
 solaris --install-timer
+
+# Install and enable the Dark Style watcher systemd service
+solaris --install-watcher
 
 # Force recalculate times and rewrite the timer schedule
 solaris --update-timer

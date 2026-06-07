@@ -6,6 +6,68 @@ echo "        Solaris Installer                    "
 echo "============================================="
 
 # ---------------------------------------------------------------------------
+# Usage / flag parsing
+# ---------------------------------------------------------------------------
+# Recognised flags:
+#   --with-solar-timer       Also run `solaris --install-timer` after install
+#                            (sets up the solaris-update.timer / .service units
+#                             that fire at sunrise and sunset).
+#   --with-watcher           Also run `solaris --install-watcher` after install
+#                            (sets up the solaris-watcher.service unit that
+#                             listens to GNOME color-scheme changes).
+#   -h, --help               Show this help text and exit.
+#
+# Both --with-* flags can be combined. They take effect only after the
+# `uv tool install` step has placed the `solaris` binary on disk.
+# ---------------------------------------------------------------------------
+
+usage() {
+    cat <<USAGE
+Usage: ./install.sh [flags]
+
+Flags:
+  --with-solar-timer       Install and enable the systemd solar schedule
+                           (solaris-update.timer / .service)
+  --with-watcher           Install and enable the real-time GNOME theme
+                           watcher (solaris-watcher.service)
+  -h, --help               Show this help and exit
+
+By default, no systemd units are enabled. Pass --with-solar-timer and/or
+--with-watcher to set them up as part of the install.
+USAGE
+}
+
+ENABLE_SOLAR_TIMER=0
+ENABLE_WATCHER=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --with-solar-timer)
+            ENABLE_SOLAR_TIMER=1
+            shift
+            ;;
+        --with-watcher)
+            ENABLE_WATCHER=1
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        --with-solar-timer=*|--with-watcher=*)
+            echo "✖ '$1' is not supported. Flags must be passed without a value." >&2
+            echo "  Run './install.sh --help' for usage." >&2
+            exit 1
+            ;;
+        *)
+            echo "✖ Unknown flag: $1" >&2
+            echo "  Run './install.sh --help' for usage." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ---------------------------------------------------------------------------
 # Distro detection
 # ---------------------------------------------------------------------------
 # Identifies the host's distro family (arch, debian, fedora, suse, nixos,
@@ -200,8 +262,51 @@ EOF
 
 chmod +x "$DESKTOP_FILE"
 
+# ---------------------------------------------------------------------------
+# 5. Optional systemd units (--with-solar-timer / --with-watcher)
+# ---------------------------------------------------------------------------
+# Use the full path to the installed CLI rather than relying on PATH,
+# mirroring the SOLARIS_GUI_PATH pattern above.
+SOLARIS_CLI_PATH="$HOME/.local/bin/solaris"
+if [ ! -x "$SOLARIS_CLI_PATH" ]; then
+    SOLARIS_CLI_PATH="solaris"
+fi
+
+ENABLED_SERVICES=()
+
+if [ "$ENABLE_SOLAR_TIMER" -eq 1 ]; then
+    echo "Setting up solar schedule systemd timer..."
+    if "$SOLARIS_CLI_PATH" --install-timer; then
+        ENABLED_SERVICES+=("solaris-update.timer (solar schedule)")
+    else
+        echo "✖ Failed to install the solar schedule timer." >&2
+        exit 1
+    fi
+fi
+
+if [ "$ENABLE_WATCHER" -eq 1 ]; then
+    echo "Setting up real-time GNOME theme watcher..."
+    if "$SOLARIS_CLI_PATH" --install-watcher; then
+        ENABLED_SERVICES+=("solaris-watcher.service (real-time watcher)")
+    else
+        echo "✖ Failed to install the GNOME theme watcher." >&2
+        exit 1
+    fi
+fi
+
 echo "---------------------------------------------"
 echo "✓ Solaris CLI ('solaris') and GUI ('solaris-gui') successfully installed!"
 echo "✓ Desktop application entry added."
 echo "  You can launch the GUI via the application launcher (search for 'Solaris')."
+if [ "${#ENABLED_SERVICES[@]}" -gt 0 ]; then
+    echo "✓ Background services enabled:"
+    for svc in "${ENABLED_SERVICES[@]}"; do
+        echo "    - $svc"
+    done
+else
+    echo "ℹ️  No background services were enabled."
+    echo "   Re-run with --with-solar-timer and/or --with-watcher to set them up,"
+    echo "   or enable them later via 'solaris --install-timer' /"
+    echo "   'solaris --install-watcher' / 'systemctl --user enable --now ...'."
+fi
 echo "============================================="

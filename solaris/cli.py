@@ -9,6 +9,7 @@ Usage examples:
   solaris --apply-dark
   solaris --auto
   solaris --install-timer
+  solaris --install-watcher
   solaris --update-timer
   solaris --watch
 """
@@ -208,6 +209,23 @@ def _handle_install_timer(cfg: config_module.SolarisConfig) -> None:
         print(f"  Sunset : {today_times.sunset.strftime('%H:%M %Z')}")
 
 
+def _handle_install_watcher(cfg: config_module.SolarisConfig) -> None:
+    """Install and enable the Dark Style watcher systemd user service.
+
+    Writes the solaris-watcher.service unit file (if needed) and
+    enables + starts it via `systemctl --user enable --now`.
+    Used by the install script's --with-watcher flag and as a
+    manual one-liner after installation.
+    """
+    try:
+        systemd_manager.enable_watcher()
+    except Exception as exc:
+        print(f"\u2717 Failed to enable Dark Style watcher: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print("\u2713 Solaris Dark Style watcher installed and enabled.")
+    print("  Listening to GNOME color-scheme changes in real time.")
+
+
 def _handle_update_timer(cfg: config_module.SolarisConfig) -> None:
     """Recalculate or reconfirm timer schedule based on the active schedule mode."""
     if cfg.schedule_mode == config_module.SCHEDULE_MODE_TIME:
@@ -249,6 +267,7 @@ Examples:
   solaris --apply-dark       Force dark theme
   solaris --auto             Apply theme based on solar position (used by systemd)
   solaris --install-timer    Install and enable the systemd timer
+  solaris --install-watcher  Install and enable the Dark Style watcher
   solaris --update-timer     Recalculate and update the timer schedule
 """,
     )
@@ -285,6 +304,14 @@ Examples:
         "--install-timer",
         action="store_true",
         help="Generate and enable the systemd service and timer units.",
+    )
+    group.add_argument(
+        "--install-watcher",
+        action="store_true",
+        help=(
+            "Install and enable the solaris-watcher.service systemd user "
+            "service that listens for GNOME color-scheme changes."
+        ),
     )
     group.add_argument(
         "--update-timer",
@@ -338,6 +365,8 @@ def main() -> None:
         _handle_status(cfg)
     elif args.install_timer:
         _handle_install_timer(cfg)
+    elif args.install_watcher:
+        _handle_install_watcher(cfg)
     elif args.update_timer:
         _handle_update_timer(cfg)
     elif args.watch:

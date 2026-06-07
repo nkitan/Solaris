@@ -7,6 +7,7 @@ that toggles between the Status dashboard and the Preferences page.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 import gi
@@ -111,12 +112,28 @@ class SolarisApplication(Adw.Application):
 
     def do_activate(self) -> None:
         """Present the main window, creating it if necessary."""
+        with open("/tmp/solaris-gui-debug.log", "a") as f:
+            f.write("do_activate called\n")
+            f.flush()
+
         cfg = config_module.load()
 
         if self._window is None:
+            with open("/tmp/solaris-gui-debug.log", "a") as f:
+                f.write("Creating new window\n")
+                f.flush()
             self._window = SolarisWindow(application=self, cfg=cfg)
+            with open("/tmp/solaris-gui-debug.log", "a") as f:
+                f.write("Window created\n")
+                f.flush()
 
+        with open("/tmp/solaris-gui-debug.log", "a") as f:
+            f.write(f"Presenting window: {self._window}\n")
+            f.flush()
         self._window.present()
+        with open("/tmp/solaris-gui-debug.log", "a") as f:
+            f.write("Window presented\n")
+            f.flush()
 
     def do_startup(self) -> None:
         """Set up application-level actions."""
@@ -137,14 +154,32 @@ class SolarisApplication(Adw.Application):
 
 def main() -> None:
     """GUI entry point called by the `solaris-gui` console script."""
+    debug_file = open("/tmp/solaris-gui-debug.log", "w")
+    debug_file.write("DEBUG: main() called\n")
+    debug_file.flush()
+
+    log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
         stream=sys.stderr,
-        level=logging.INFO,
+        level=getattr(logging, log_level, logging.INFO),
         format="%(levelname)s %(name)s: %(message)s",
     )
 
+    debug_file.write(f"DEBUG: Starting with LOG_LEVEL={log_level}\n")
+    debug_file.flush()
+    logger.info("Starting Solaris GUI")
+
+    debug_file.write("DEBUG: Creating app\n")
+    debug_file.flush()
     app = SolarisApplication()
+
+    debug_file.write(f"DEBUG: App created, running with argv: {sys.argv}\n")
+    debug_file.flush()
     exit_code = app.run(sys.argv)
+
+    debug_file.write(f"DEBUG: App exited with code: {exit_code}\n")
+    debug_file.flush()
+    debug_file.close()
     sys.exit(exit_code)
 
 

@@ -89,7 +89,7 @@ class StatusPage(Adw.PreferencesPage):
         self._logo_image.set_pixel_size(128)
         logo_box.append(self._logo_image)
 
-        group.set_header_widget(logo_box)
+        group.set_header_suffix(logo_box)
 
     def _build_status_group(self) -> None:
         """Build the current mode display group (mirrors GNOME Dark Style toggle)."""

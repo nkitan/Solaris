@@ -11,6 +11,11 @@ Solaris works on any Linux distribution running **GNOME with systemd**. The inst
 ---
 
 <img width="1000" height="625" alt="solaris-demo-watcher-2(1)" src="https://github.com/user-attachments/assets/f7fa6bb7-bfa5-4a1d-afc9-59d1bb3e52b0" />
+<img width="456" height="637" alt="Screenshot From 2026-06-08 01-31-21" src="https://github.com/user-attachments/assets/632c35f2-3c9c-42ac-b1b1-bd24c3c2d9a8" />
+<img width="456" height="637" alt="Screenshot From 2026-06-08 01-31-27" src="https://github.com/user-attachments/assets/90a3f787-56e0-4aec-b7bf-022aa248f31e" />
+<img width="456" height="637" alt="Screenshot From 2026-06-08 01-31-55" src="https://github.com/user-attachments/assets/f5fde201-96b9-4594-b177-b567b8ef5af3" />
+
+
 
 ## 🚀 Features & Integrations
 

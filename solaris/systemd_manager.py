@@ -34,7 +34,7 @@ _SERVICE_TEMPLATE = """\
 Description=Solaris Theme Update
 Documentation=https://github.com/notroot/solaris
 After=graphical-session.target
-Requires=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Type=oneshot
@@ -268,7 +268,7 @@ _WATCHER_SERVICE_TEMPLATE = """\
 Description=Solaris Dark Style Watcher
 Documentation=https://github.com/notroot/solaris
 After=graphical-session.target
-Requires=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
